@@ -16,6 +16,7 @@ This repo hosts files for triggering Jenkins Pipelines, based on user input prov
 
 - Python environment to run the application
 - Optional: CI/CD platform if desired to automate the process
+- OpenAI, or any other LLM model
 
 **Usage**
 

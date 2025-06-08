@@ -3,14 +3,14 @@ The repo includes the files for GenAI configuration management using function ca
 
 The goal of the solution is to re-use existing Infrastructure as Code workflows, developed in Python, Ansible or Terraform, while providing an AI interface for the users to trigger the execution of CI/CD pipelines. 
 
-# Cisco DNA Center Network Compliance
+# Catalyst Center Network Compliance
 
 This repo hosts files for triggering Jenkins Pipelines, based on user input provided natural language.
 
 **Cisco Products & Services:**
 
- - Cisco DNA Center, devices managed by Cisco DNA Center
- - Cisco DNA Center Python SDK
+ - Catalyst Center, devices managed by Catalyst Center
+ - Catalyst Center Python SDK
 
 **Tools & Frameworks:**
 

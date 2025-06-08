@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2024 Cisco and/or its affiliates.
+Copyright (c) 2025 Cisco and/or its affiliates.
 This software is licensed to you under the terms of the Cisco Sample
 Code License, Version 1.1 (the "License"). You may obtain a copy of the
 License at
@@ -17,13 +17,13 @@ or implied.
 __author__ = "Gabriel Zapodeanu TME, ENB"
 __email__ = "gzapodea@cisco.com"
 __version__ = "0.1.0"
-__copyright__ = "Copyright (c) 2024 Cisco and/or its affiliates."
+__copyright__ = "Copyright (c) 2025 Cisco and/or its affiliates."
 __license__ = "Cisco Sample Code License, Version 1.1"
 
 import requests
 import urllib3
 import json
-import logging
+
 import os
 from openai import OpenAI
 import time
@@ -40,7 +40,7 @@ load_dotenv('environment.env')
 
 # Jenkins server details
 JENKINS_SERVER = os.getenv('JENKINS_SERVER')
-JENKINS_TOKEN = os.getenv('JENKINS_TOKEN')
+JENKINS_API_TOKEN = os.getenv('JENKINS_API_TOKEN')
 JENKINS_USER = os.getenv('JENKINS_USER')
 
 # OpenAI key
@@ -50,10 +50,10 @@ client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 os.environ['TZ'] = 'America/Los_Angeles'  # define the timezone for PST
 time.tzset()  # adjust the timezone, more info https://help.pythonanywhere.com/pages/SettingTheTimezone/
 
-JENKINS_AUTH = HTTPBasicAuth(JENKINS_USER, JENKINS_TOKEN)
+JENKINS_AUTH = HTTPBasicAuth(JENKINS_USER, JENKINS_API_TOKEN)
 
 
-def provision_network_device_jenkins(arguments):
+def provision_network_device(arguments):
     """
     This function will call REST APIs to trigger Jenkins pipeline to provision the network device with {hostname} to
     site with the hierarchy {site_hierarchy}
@@ -65,6 +65,42 @@ def provision_network_device_jenkins(arguments):
     response = requests.post(url, params=arguments, auth=JENKINS_AUTH, verify=False)
     if response.status_code == 201:
         response_status = 'Device provisioning started, see status here: https://10.93.141.47:8443/job/Provision%20Device/'
+    else:
+        response_status = 'Pipeline not started, something went wrong'
+    return response_status, response.status_code
+
+
+def software_distribution(arguments):
+    """
+    This function will call REST APIs to trigger Jenkins pipeline to start a software image distribution for
+    the network device with {hostname}. The golden image for the device and site will be uploaded to device
+    :param arguments: Required arguments as dictionary: {'hostname': 'PDX-RN'}
+    :return: task status
+    """
+
+    url = JENKINS_SERVER + '/job/Software%20Distribution/buildWithParameters'
+    response = requests.post(url, params=arguments, auth=JENKINS_AUTH, verify=False)
+    if response.status_code == 201:
+        response_status = 'Device provisioning started, see status here: https://10.93.141.47:8443/job/Software%20Distribution/'
+    else:
+        response_status = 'Pipeline not started, something went wrong'
+    return response_status, response.status_code
+
+
+def add_device(arguments):
+    """
+        This function will call REST APIs to trigger Jenkins pipeline to add a new network device with
+        {management_ip_address} to Catalyst Center
+        :param arguments: Required arguments as dictionary: {'management_ip_address': '10.93.141.23'}
+        :return: task status, and status code
+        """
+
+    url = JENKINS_SERVER + '/job/Add%20Device/buildWithParameters'
+    response = requests.post(url, params=arguments, auth=JENKINS_AUTH, verify=False)
+    if response.status_code == 201:
+        response_status = 'Add new device to inventory started, see status here: https://10.93.141.47:8443/job/Add%20Device/'
+    else:
+        response_status = 'Pipeline not started, something went wrong'
     return response_status, response.status_code
 
 
@@ -86,7 +122,7 @@ def chatbot():
     while True:
         # Get user input
         user_input = input(
-            '\n I am a network assistant running network automation workflows. What network configuration task are you interested in? ')
+            '\n I am a network assistant running network automation workflows. What can I help you with? ')
 
         # Check if the user wants to exit
         if user_input.lower() in ['exit', 'quit', 'q']:
@@ -95,7 +131,25 @@ def chatbot():
 
         functions = [
             {
-                "name": "provision_network_device_jenkins",
+                "name": "add_device",
+                "description": "Add a new network device, switch our router to Catalyst Center. Call this function when "
+                               "user asks to add a network device, device, node, host, to the inventory or Catalyst"
+                               "Center while providing an IP address of device."
+                               "to manage the device. For example: an user asks for 'add device'",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "device_ip_address": {
+                            "type": "string",
+                            "description": "This is the device IP address that will be used to manage the device"
+                        }
+                    },
+                    "required": ["device_ip_address"],
+                    "additionalProperties": False
+                }
+            },
+            {
+                "name": "provision_network_device",
                 "description": "Provision a device to a site. Call this whenever you need to provision a device, "
                                "or network device, to a location, for example: an user asks "
                                "'Provision a network device to a site'",
@@ -104,7 +158,7 @@ def chatbot():
                     "properties": {
                         "hostname": {
                             "type": "string",
-                            "description": "This is the device name or hostname, or the network device name or hostname",
+                            "description": "This is the device name or hostname, or the network device name or hostname"
                         },
                         "siteHierarchy": {
                             "type": "string",
@@ -119,13 +173,13 @@ def chatbot():
                 "name": "software_distribution",
                 "description": "Start a new software upgrade to a device. Call this whenever you need to start a "
                                "software upgrade or image distribution to a device or network device, to a location, "
-                               "for example: an user asks for 'software upgrade'",
+                               "for example: an user asks for 'software distribution'",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "hostname": {
                             "type": "string",
-                            "description": "This is the device name or hostname, or the network device name or hostname",
+                            "description": "This is the device name or hostname, or the network device name or hostname"
                         }
                     },
                     "required": ["hostname"],
@@ -134,22 +188,23 @@ def chatbot():
             }
         ]
 
-        # Start a chat that triggers the function
+        # Start a chat that identifies and triggers the function
         messages = [
             {"role": "system", "content": "I am a network assistant running network automation workflows like devices "
-                                          "provisioning, PnP onboarding, software upgrades, device configuration, ..."},
+                                          "provisioning, device onboarding, software upgrades, ..."},
             {"role": "user",
              "content": user_input}
         ]
 
-        # Make a request to the OpenAI API with function calling
+        # Make a request function calling to OpenAI, providing the query and the function list
         response = client.chat.completions.create(model="gpt-4o", messages=messages, functions=functions,
                                                   function_call="auto")
-        # print(' Chat completion response: ' + str(response))
+        # print('\n\n Chat completion response: ' + str(response))
 
         # Check if the assistant decided to make a function call
         if response.choices[0].finish_reason == 'function_call':
             function_call = response.choices[0].message.function_call  # Access the function call details
+
             function_name = function_call.name  # Get the function name
             arguments = json.loads(function_call.arguments)  # Load the arguments as a JSON object
             print('\n Workflow name: ' + function_name)
@@ -162,7 +217,9 @@ def chatbot():
                 workflow_response = globals()[function_name](arguments)
                 if workflow_response[1] == 201:
                     # Return the status to user
-                    print('\n Network Assistant: ' + workflow_response[0])
+                    print('\n Network Assistant: Happy to help, ' + workflow_response[0])
+        else:
+            print('\n ' + response.choices[0].message.content)
 
     date_time = str(datetime.now().replace(microsecond=0))
     print(' End of Application "catalyst_center_genai_config_tools.py" Run: ' + date_time)
